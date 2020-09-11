@@ -1,62 +1,71 @@
 import React, { Component } from 'react'
-import { StyleSheet, NativeSyntheticEvent, TextInputKeyPressEventData, ScrollView, Button } from 'react-native'
-import TekliCeviriciCevirmeAraci from '../Components/TekliCevirici/TekliCeviriciCevirmeAraci'
+import { StyleSheet, NativeSyntheticEvent, TextInputKeyPressEventData, ScrollView, Text, View } from 'react-native'
 import TekliCeviriciBtnYerDegistir from '../Components/TekliCevirici/TekliCeviriciBtnYerDegistir'
-import { IDdlOptions } from '../Components/Araclar/DropdownList'
+import DropdownList, { IDdlOptions } from '../Components/Araclar/DropdownList'
 import axios from "axios"
-import { SayiyiUstGostergesiOlmadanHesapla, TarihiStringeCevir } from '../Utilities/GenelFonksiyonlar'
+import { SayiyiBasamaklaraAyir, SayiyiUstGostergesiOlmadanHesapla, TarihiStringeCevir } from '../Utilities/GenelFonksiyonlar'
+import TextInputBox, { KeyboardType } from '../Components/Araclar/TextInputBox'
 
 
 interface Props {
 
 }
 interface State {
-    txtIlkDoviz?: string
-    txtIkinciDoviz?: string
+    txtBirinciDoviz?: string
+    txtSonuc?: string
     pressedKey?: string
     ddlBirinciDoviz?: any
     ddlIkinciDoviz?: any
 }
 export default class TekliCevirici extends Component<Props, State> {
     state = {
-        txtIlkDoviz: "1",
-        txtIkinciDoviz: "",
+        txtBirinciDoviz: "1",
+        txtSonuc: "",
         pressedKey: "",
         ddlBirinciDoviz: 1,
         ddlIkinciDoviz: 2,
     }
     //#region Değişkenler
-    ddlBirinciDoviz: Array<IDdlOptions> = []
-    ddlIkinciDoviz: Array<IDdlOptions> = []
+    ddlBirinciDovizOptions: Array<IDdlOptions> = []
+    ddlIkinciDovizOptions: Array<IDdlOptions> = []
     tumParalarListesi = {}
     tumParalarDiziyeDonusturulmusListe: Array<any> = []
     //#endregion
-    //#region OnChangeText, OnKeyPress
+    //#region OnChangeText, OnKeyPress, DdlDovizOnChange
     OnChangeText = (e: string, name: string) => {
         const girilenDeger = e.substring(e.length - 1, e.length)
         const dahaOncekiDegerdeNoktaVarMi = this.state[name].indexOf(".")
 
         if (dahaOncekiDegerdeNoktaVarMi === - 1) {
-            this.setState({ [name]: e })
+            this.setState({ [name]: e }, () => {
+                this.DovizHesapla()
+            })
         }
         else if (girilenDeger !== "." && girilenDeger !== "-" || this.state.pressedKey === "Backspace") {
-            this.setState({ [name]: e })
+            this.setState({ [name]: e }, () => {
+                this.DovizHesapla()
+            })
         }
     }
     OnKeyPress = (e: NativeSyntheticEvent<TextInputKeyPressEventData>) => {
         // NOT: Eğer basılan tuş Backspace ise OnKeyPress eventi OnChangeText'den önce çalışıyor. Ancak diğer tüm press durumlarında önce OnChangeText sonra OnKeyPress çalışıyor. Bu sebeple üst kısımdaki kontroller bu mantık çerçevesinde yapıldı.
+        // NOT 2: Bu fonksiyon android cihazlar'da yalnızca fiziksel(gerçek) cihazlarda çalışmaktadır. Emulatorler bu metodu görmez.
         this.setState({ pressedKey: e.nativeEvent.key })
     }
-    //#endregion
-    //#region DdlDovizOnChange
     DdlDovizOnChange = (e, name) => {
         this.setState({ [name]: e }, async () => {
             await this.DdlDovizIcindekiEslesenVerileriKaldir()
+            await this.DovizHesapla()
         })
     }
     //#endregion
 
-    //#region DovizleriGetir, GorunecekDovizIsminiAyarla
+    async componentDidMount() {
+        await this.DovizleriGetir()
+        this.DovizHesapla()
+    }
+
+    //#region DovizleriGetir, GorunecekDovizIsminiAyarla, Paralarin1TLKarsisindakiDegeriniBul
     DovizleriGetir = async () => {
         try {
             const gununTarihi = await TarihiStringeCevir(new Date())
@@ -67,14 +76,14 @@ export default class TekliCevirici extends Component<Props, State> {
             if (dovizlerSonuc.status === 200 && kriptoParalarSonuc.status === 200) {
                 this.tumParalarListesi = dovizlerSonuc.data.items[0]
                 this.tumParalarListesi = { ...this.tumParalarListesi, ...kriptoParalarSonuc.data.rates }
+
                 delete this.tumParalarListesi["Tarih"]
                 delete this.tumParalarListesi["UNIXTIME"]
 
-                // console.log(SayiyiUstGostergesiOlmadanHesapla(0.0000972 / 356.70, 8))
+                const paralarin1TLDonusumSonucu = await this.Paralarin1TLKarsisindakiDegeriniBul(this.tumParalarListesi)
+                this.tumParalarListesi = paralarin1TLDonusumSonucu
 
-                // await this.DdlDovizIlkYuklemeleriniYap()
                 await this.DdlDovizIcindekiEslesenVerileriKaldir()
-
                 this.forceUpdate()
             }
         } catch (error) {
@@ -84,12 +93,23 @@ export default class TekliCevirici extends Component<Props, State> {
     GorunecekDovizIsminiAyarla = async (tumParalarinObjeleri, index) => {
         return tumParalarinObjeleri[index].includes("EUR") ? "EUR" : tumParalarinObjeleri[index].includes("USD") ? "USD" : tumParalarinObjeleri[index]
     }
-    //#endregion
+    Paralarin1TLKarsisindakiDegeriniBul = async (paralarListesi) => {
+        const paralarListesiObjeleri = Object.keys(paralarListesi)
 
+        let sonuc = {}
+        for (let i = 0; i < paralarListesiObjeleri.length; i++) {
+            sonuc = {
+                ...sonuc,
+                [paralarListesiObjeleri[i]]: SayiyiUstGostergesiOlmadanHesapla((1 / paralarListesi[paralarListesiObjeleri[i]]), 8)
+            }
+        }
+        return sonuc
+    }
+    //#endregion
     //#region DdlDovizIlkYuklemeleriniYap, DdlDovizIcindekiEslesenVerileriKaldir
     DdlDovizIlkYuklemeleriniYap = async () => {
-        this.ddlBirinciDoviz = []
-        this.ddlIkinciDoviz = []
+        this.ddlBirinciDovizOptions = []
+        this.ddlIkinciDovizOptions = []
 
         //#region Türk Lirası ApiCall içerisinden gelmediği için bu kısımda el ile ekliyoruz.
         this.tumParalarDiziyeDonusturulmusListe.push(
@@ -100,10 +120,10 @@ export default class TekliCevirici extends Component<Props, State> {
                 varsayilanIsim: "TRY"
             }
         )
-        this.ddlBirinciDoviz.push(
+        this.ddlBirinciDovizOptions.push(
             { text: "TRY", value: 1 }
         )
-        this.ddlIkinciDoviz.push(
+        this.ddlIkinciDovizOptions.push(
             { text: "TRY", value: 1 }
         )
         //#endregion
@@ -118,59 +138,155 @@ export default class TekliCevirici extends Component<Props, State> {
                     varsayilanIsim: tumParalarinObjeleri[i]
                 }
             )
-            this.ddlBirinciDoviz.push(
+            this.ddlBirinciDovizOptions.push(
                 { text: await this.GorunecekDovizIsminiAyarla(tumParalarinObjeleri, i), value: i + 2 }
             )
-            this.ddlIkinciDoviz.push(
+            this.ddlIkinciDovizOptions.push(
                 { text: await this.GorunecekDovizIsminiAyarla(tumParalarinObjeleri, i), value: i + 2 }
             )
         }
     }
     DdlDovizIcindekiEslesenVerileriKaldir = async () => {
         await this.DdlDovizIlkYuklemeleriniYap()
-        this.ddlBirinciDoviz.map((x, index) => x.value === this.state.ddlIkinciDoviz ? this.ddlBirinciDoviz.splice(index, 1) : null)
-        this.ddlIkinciDoviz.map((x, index) => x.value === this.state.ddlBirinciDoviz ? this.ddlIkinciDoviz.splice(index, 1) : null)
+        this.ddlBirinciDovizOptions.map((x, index) => x.value === this.state.ddlIkinciDoviz ? this.ddlBirinciDovizOptions.splice(index, 1) : null)
+        this.ddlIkinciDovizOptions.map((x, index) => x.value === this.state.ddlBirinciDoviz ? this.ddlIkinciDovizOptions.splice(index, 1) : null)
         this.forceUpdate()
     }
     //#endregion
 
+    //#region DovizHesapla
+    DovizHesapla = async () => {
+        let birinciDovizDegeri
+        let ikinciDovizDegeri
+        for (let i = 0; i < this.tumParalarDiziyeDonusturulmusListe.length; i++) {
+            if (this.tumParalarDiziyeDonusturulmusListe[i].id === this.state.ddlBirinciDoviz) {
+                birinciDovizDegeri = this.tumParalarDiziyeDonusturulmusListe[i].value
+            }
+            else if (this.tumParalarDiziyeDonusturulmusListe[i].id === this.state.ddlIkinciDoviz) {
+                ikinciDovizDegeri = this.tumParalarDiziyeDonusturulmusListe[i].value
+            }
+
+            if (birinciDovizDegeri !== undefined && ikinciDovizDegeri !== undefined) {
+                break
+            }
+        }
+
+        const ustGostergesizSonuc = SayiyiUstGostergesiOlmadanHesapla((ikinciDovizDegeri / birinciDovizDegeri) * Number(this.state.txtBirinciDoviz), 4)
+
+        this.setState({
+            txtSonuc: SayiyiBasamaklaraAyir(ustGostergesizSonuc)
+        })
+    }
+    //#endregion
+
+    //#region BtnDovizYerleriniDegistir
+    BtnDovizYerleriniDegistir = () => {
+        const oncekiIlkOptions = JSON.parse(JSON.stringify(this.ddlBirinciDovizOptions))
+        const oncekiIkinciOptions = JSON.parse(JSON.stringify(this.ddlIkinciDovizOptions))
+        const oncekiDdlBirinciDoviz = JSON.parse(JSON.stringify(this.state.ddlBirinciDoviz))
+        const oncekiDdlIkinciDoviz = JSON.parse(JSON.stringify(this.state.ddlIkinciDoviz))
+
+        this.ddlBirinciDovizOptions = oncekiIkinciOptions
+        this.ddlIkinciDovizOptions = oncekiIlkOptions
+        this.setState({
+            ddlBirinciDoviz: oncekiDdlIkinciDoviz,
+            ddlIkinciDoviz: oncekiDdlBirinciDoviz
+        }, () => {
+            this.DovizHesapla()
+        })
+    }
+    //#endregion
+
     render() {
+        const seciliBirinciDovizinAdi = this.tumParalarDiziyeDonusturulmusListe[this.state.ddlBirinciDoviz - 1] !== undefined ? this.tumParalarDiziyeDonusturulmusListe[this.state.ddlBirinciDoviz - 1].name : ""
+        const seciliIkinciDovizinAdi = this.tumParalarDiziyeDonusturulmusListe[this.state.ddlIkinciDoviz - 1] !== undefined ? this.tumParalarDiziyeDonusturulmusListe[this.state.ddlIkinciDoviz - 1].name : ""
+
         return (
-            <ScrollView contentContainerStyle={style.mainView}>
-                <TekliCeviriciCevirmeAraci
-                    txtSayiName="txtIlkDoviz"
-                    txtSayiValue={this.state.txtIlkDoviz}
-                    OnChangeText={this.OnChangeText}
-                    OnKeyPress={this.OnKeyPress}
-                    DdlOnChange={this.DdlDovizOnChange}
-                    ddlDovizName="ddlBirinciDoviz"
-                    ddlDovizOptions={this.ddlBirinciDoviz}
-                    ddlDovizValue={this.state.ddlBirinciDoviz}
-                />
-                <TekliCeviriciBtnYerDegistir />
-                <TekliCeviriciCevirmeAraci
-                    txtSayiName="txtIkinciDoviz"
-                    txtSayiValue={this.state.txtIkinciDoviz}
-                    OnChangeText={this.OnChangeText}
-                    OnKeyPress={this.OnKeyPress}
-                    DdlOnChange={this.DdlDovizOnChange}
-                    ddlDovizName="ddlIkinciDoviz"
-                    ddlDovizOptions={this.ddlIkinciDoviz}
-                    ddlDovizValue={this.state.ddlIkinciDoviz}
-                />
-                <Button
-                    onPress={this.DovizleriGetir}
-                    title="Döviz Getir"
-                />
+            <ScrollView contentContainerStyle={style.mainScrollView}>
+                <View style={style.mainView}>
+                    <View style={style.textboxMainView}>
+                        <View style={style.textboxMainViewIcindekiAraclarinAnaBoyuView}>
+                            <TextInputBox
+                                OnChangeText={this.OnChangeText}
+                                name="txtBirinciDoviz"
+                                value={this.state.txtBirinciDoviz}
+                                keyboardType={KeyboardType.numeric}
+                                OnKeyPress={this.OnKeyPress}
+                            />
+                        </View>
+                        <View style={[style.textboxMainViewIcindekiAraclarinAnaBoyuView, { marginVertical: 0 }]}>
+                            <DropdownList
+                                DdlOnChange={this.DdlDovizOnChange}
+                                name="ddlBirinciDoviz"
+                                options={this.ddlBirinciDovizOptions}
+                                value={this.state.ddlBirinciDoviz}
+                            />
+                        </View>
+                        <TekliCeviriciBtnYerDegistir
+                            OnPress={this.BtnDovizYerleriniDegistir}
+                        />
+                        <View style={[style.textboxMainViewIcindekiAraclarinAnaBoyuView, { marginVertical: 0 }]}>
+                            <DropdownList
+                                DdlOnChange={this.DdlDovizOnChange}
+                                name="ddlIkinciDoviz"
+                                options={this.ddlIkinciDovizOptions}
+                                value={this.state.ddlIkinciDoviz}
+                            />
+                        </View>
+                        <View style={style.sonucView}>
+                            <Text style={style.sonucMainText}>
+                                {`${this.state.txtBirinciDoviz} ${seciliBirinciDovizinAdi} = `}
+                                <Text style={style.donusumSonucuText}>{`${this.state.txtSonuc} `}</Text>
+                                {seciliIkinciDovizinAdi}
+                            </Text>
+                        </View>
+                    </View>
+                </View>
             </ScrollView>
         )
     }
 }
 
 const style = StyleSheet.create({
-    mainView: {
+    mainScrollView: {
         justifyContent: "center",
         alignItems: "center",
         flexGrow: 1
+    },
+    mainView: {
+        backgroundColor: "gainsboro",
+        width: "90%",
+        borderRadius: 5,
+        elevation: 3,
+        shadowColor: "gray",
+        shadowOffset: {
+            height: 0,
+            width: 3
+        },
+        shadowRadius: 5,
+        shadowOpacity: 0.5
+    },
+    textboxMainView: {
+        justifyContent: "center",
+        alignItems: "center",
+        marginTop: 10,
+    },
+    textboxMainViewIcindekiAraclarinAnaBoyuView: {
+        width: "95%",
+        marginVertical: 10
+    },
+    sonucView: {
+        backgroundColor: "white",
+        marginVertical: 10,
+        borderRadius: 5
+    },
+    sonucMainText: {
+        marginVertical: 10,
+        marginHorizontal: 10,
+        fontSize: 14
+    },
+    donusumSonucuText: {
+        fontWeight: "bold",
+        fontSize: 17
     }
 })

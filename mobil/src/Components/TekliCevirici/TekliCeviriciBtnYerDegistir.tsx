@@ -3,7 +3,7 @@ import { View, StyleSheet, TouchableOpacity, Image } from 'react-native'
 
 
 interface Props {
-
+    OnPress(): void
 }
 interface State {
 
@@ -11,19 +11,15 @@ interface State {
 export default class TekliCeviriciBtnYerDegistir extends Component<Props, State> {
     state = {}
 
-    OnPress = () => {
-
-    }
-
     render() {
         return (
             <TouchableOpacity
                 style={style.mainView}
-                onPress={this.OnPress}
+                onPress={this.props.OnPress}
             >
                 <Image
                     source={require("../../Images/Icons/takasOklari.png")}
-                    style={{ width: 40, height: 40 }}
+                    style={{ width: 25, height: 25 }}
                 />
             </TouchableOpacity>
         )

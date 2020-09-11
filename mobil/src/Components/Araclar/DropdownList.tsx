@@ -1,7 +1,6 @@
 import React, { Component } from 'react'
 import { StyleSheet, View } from 'react-native'
 import { Picker } from '@react-native-community/picker'
-// import { Item, Picker } from "native-base";
 
 
 /**
@@ -20,33 +19,54 @@ interface Props {
     DdlOnChange: Function
     options: Array<IDdlOptions>
     name: string
-    // placeholder?: string
 }
 interface State {
 
 }
 export default class DropdownList extends Component<Props, State> {
     state = {}
+    //#region style
     style = StyleSheet.create({
-        dropdownList: {
-            width: "100%",
-            // height: 40,
+        mainView: {
             backgroundColor: "white",
+            width: "100%",
+            borderRadius: 5,
+            borderColor: "gray",
             borderStyle: "solid",
             borderWidth: 1,
-            borderColor: "gray",
-            borderRadius: 5,
-        }
+            height: 40
+        },
+        pickerMain: {
+            width: "100%",
+            marginLeft: 5,
+            height: 40
+        },
+        // dropdownList: {
+        //     width: "100%",
+        //     // height: 40,
+        //     backgroundColor: "white",
+        //     borderStyle: "solid",
+        //     borderWidth: 1,
+        //     borderColor: "gray",
+        //     borderRadius: 5,
+        // }
     })
+    //#endregion
+
+    OnValueChange = (itemValue) => {
+        if (itemValue !== this.props.value) {
+            this.props.DdlOnChange(itemValue, this.props.name)
+        }
+    }
 
     render() {
         return (
-            <View style={{ backgroundColor: "white", width: "100%", borderRadius: 5, borderColor: "gray", borderStyle: "solid", borderWidth: 1, height: 40 }}>
+            <View style={this.style.mainView}>
                 <Picker
                     mode="dialog"
-                    style={{ width: "100%", marginLeft: 5, height: 40 }}
+                    style={this.style.pickerMain}
                     selectedValue={this.props.value}
-                    onValueChange={(itemValue) => this.props.DdlOnChange(itemValue, this.props.name)}
+                    onValueChange={this.OnValueChange}
                 >
                     {
                         this.props.options.map((x, index) =>

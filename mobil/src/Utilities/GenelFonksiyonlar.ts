@@ -34,3 +34,9 @@ export const TarihiStringeCevir = async (tarih: Date) => {
 
     return (gun.toString().length === 1 ? "0" + gun : gun) + "-" + ((ay + 1).toString().length === 1 ? "0" + (ay + 1) : (ay + 1)) + "-" + yil
 }
+
+export const SayiyiBasamaklaraAyir = (sayi) => {
+    var parts = sayi.toString().split(".");
+    parts[0] = parts[0].replace(/\B(?=(\d{3})+(?!\d))/g, ",");
+    return parts.join(".");
+}

@@ -23,6 +23,9 @@ interface Props {
      * @param name = araç adını geriye döner.
      */
     OnChangeText(e: string, name: string): void
+    /**
+     *  NOT: Bu fonksiyon android cihazlar'da yalnızca fiziksel(gerçek) cihazlarda çalışmaktadır. Emulatorler bu metodu görmez.
+     */
     OnKeyPress?(e: NativeSyntheticEvent<TextInputKeyPressEventData>): void
     editable?: boolean
     keyboardType?: KeyboardType
@@ -120,7 +123,6 @@ export default class TextInputBox extends Component<Props, State> {
                     placeholder={this.props.placeholder}
                     secureTextEntry={this.props.secureTextEntryAktifMi}
                     autoCapitalize={this.props.autoCapitalize}
-
                     onKeyPress={this.props.OnKeyPress}
                 />
                 {
