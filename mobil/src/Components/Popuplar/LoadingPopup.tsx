@@ -28,7 +28,7 @@ export default class LoadingPopup extends Component<Props, State> {
                             </View>
 
                             <View style={styles.icerikAlani}>
-                                <ActivityIndicator size="large" />
+                                <ActivityIndicator size="large" animating={true} color="default" />
                             </View>
                         </View>
                     </View>

@@ -1,5 +1,5 @@
 import React, { Component } from 'react'
-import { StyleSheet, NativeSyntheticEvent, TextInputKeyPressEventData, Text, View } from 'react-native'
+import { StyleSheet, NativeSyntheticEvent, TextInputKeyPressEventData, Text, View, Image } from 'react-native'
 import TekliCeviriciBtnYerDegistir from '../Components/TekliCevirici/TekliCeviriciBtnYerDegistir'
 import DropdownList, { IDdlOptions } from '../Components/Araclar/DropdownList'
 import axios from "axios"
@@ -82,14 +82,22 @@ export default class TekliCevirici extends Component<Props, State> {
             const gununTarihi = await this.DovizGetirmeIslemiIcinTarihBul()
 
             const dovizlerSonuc = await axios.get(`https://evds2.tcmb.gov.tr/service/evds/series=TP.DK.USD.S-TP.DK.EUR.S&startDate=${gununTarihi}&endDate=${gununTarihi}&type=json&key=OUOWPKExMb`)
-            const kriptoParalarSonuc = await axios.get("http://api.coinlayer.com/live?access_key=b8ff96db3ba403a1a49584d1d345d4df&target=TRY&symbols=BTC,ETH,DOGE")
 
-            if (dovizlerSonuc.status === 200 && kriptoParalarSonuc.status === 200) {
+            const kriptoParalarsonuc = await axios.get("https://pro-api.coinmarketcap.com/v1/cryptocurrency/quotes/latest?symbol=BTC,ETH,DOGE&convert=TRY", { headers: { "X-CMC_PRO_API_KEY": "23e0d3d1-41ae-43a0-87e3-57b4d2764bc6" } })
+
+            if (dovizlerSonuc.status === 200 && kriptoParalarsonuc.status === 200) {
                 this.tumParalarListesi = dovizlerSonuc.data.items[0]
-                this.tumParalarListesi = { ...this.tumParalarListesi, ...kriptoParalarSonuc.data.rates }
-
                 delete this.tumParalarListesi["Tarih"]
                 delete this.tumParalarListesi["UNIXTIME"]
+
+                const kriptoParaObjeleri = Object.keys(kriptoParalarsonuc.data.data)
+                for (let i = 0; i < kriptoParaObjeleri.length; i++) {
+                    console.log(kriptoParaObjeleri[i])
+                    this.tumParalarListesi = {
+                        ...this.tumParalarListesi,
+                        [kriptoParaObjeleri[i]]: kriptoParalarsonuc.data.data[kriptoParaObjeleri[i]].quote.TRY.price
+                    }
+                }
 
                 const paralarin1TLDonusumSonucu = await this.Paralarin1TLKarsisindakiDegeriniBul(this.tumParalarListesi)
                 this.tumParalarListesi = paralarin1TLDonusumSonucu
@@ -115,10 +123,10 @@ export default class TekliCevirici extends Component<Props, State> {
         let gununTarihi = await TarihiStringeCevir(new Date())
         let yilOncelikliGununTarihi = await TarihiStringeCevir(new Date(), true)
 
-        let tarih = new Date(`${yilOncelikliGununTarihi} 00:00:00 GMT+0000`)
+        let tarih = new Date(yilOncelikliGununTarihi)
         let gunHaftaninKacinciGunu = tarih.getDay()
         const hd = new Holidays("TR")
-        let resmiTatilMi = hd.isHoliday(new Date(`${yilOncelikliGununTarihi} 00:00:00 GMT+0000`))
+        let resmiTatilMi = hd.isHoliday(new Date(yilOncelikliGununTarihi))
 
         if (gunHaftaninKacinciGunu === 6) {
             tarih.setDate(tarih.getDate() - 1)
@@ -265,6 +273,15 @@ export default class TekliCevirici extends Component<Props, State> {
                 loadingPopupAcikMi={loadingPopupAcikMi}
             >
                 <View style={style.mainView}>
+                    <View style={style.baslikMainView}>
+                        <Image
+                            source={require("../Images/Icons/money2.png")}
+                            style={{ width: 35, height: 35 }}
+                            resizeMode={"stretch"}
+                        />
+                        <Text style={style.baslikText}>Döviz Çevirici</Text>
+                    </View>
+
                     <View style={style.mainViewIciView}>
                         <View style={style.textboxMainViewIcindekiAraclarinAnaBoyuView}>
                             <TextInputBox
@@ -313,6 +330,16 @@ const style = StyleSheet.create({
         justifyContent: "center",
         alignItems: "center",
         flexGrow: 1
+    },
+    baslikMainView: {
+        marginVertical: 10,
+        flexDirection: "row"
+    },
+    baslikText: {
+        fontSize: 26,
+        fontWeight: "bold",
+        fontStyle: "italic",
+        marginLeft: 10
     },
     mainViewIciView: {
         backgroundColor: "gainsboro",
