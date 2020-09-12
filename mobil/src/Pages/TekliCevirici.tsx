@@ -1,16 +1,22 @@
 import React, { Component } from 'react'
-import { StyleSheet, NativeSyntheticEvent, TextInputKeyPressEventData, ScrollView, Text, View } from 'react-native'
+import { StyleSheet, NativeSyntheticEvent, TextInputKeyPressEventData, Text, View } from 'react-native'
 import TekliCeviriciBtnYerDegistir from '../Components/TekliCevirici/TekliCeviriciBtnYerDegistir'
 import DropdownList, { IDdlOptions } from '../Components/Araclar/DropdownList'
 import axios from "axios"
 import { SayiyiBasamaklaraAyir, SayiyiUstGostergesiOlmadanHesapla, TarihiStringeCevir } from '../Utilities/GenelFonksiyonlar'
 import TextInputBox, { KeyboardType } from '../Components/Araclar/TextInputBox'
+import Holidays from "date-holidays"
+import Layout from '../Components/Layout/Layout'
 
 
 interface Props {
 
 }
 interface State {
+    hataMesajiPopupAcikMi?: boolean
+    hataMesajiPopupMesaj?: string
+    loadingPopupAcikMi?: boolean
+
     txtBirinciDoviz?: string
     txtSonuc?: string
     pressedKey?: string
@@ -19,6 +25,10 @@ interface State {
 }
 export default class TekliCevirici extends Component<Props, State> {
     state = {
+        hataMesajiPopupAcikMi: false,
+        hataMesajiPopupMesaj: "",
+        loadingPopupAcikMi: true,
+
         txtBirinciDoviz: "1",
         txtSonuc: "",
         pressedKey: "",
@@ -62,13 +72,14 @@ export default class TekliCevirici extends Component<Props, State> {
 
     async componentDidMount() {
         await this.DovizleriGetir()
-        this.DovizHesapla()
+        await this.DovizHesapla()
+        this.setState({ loadingPopupAcikMi: false })
     }
 
-    //#region DovizleriGetir, GorunecekDovizIsminiAyarla, Paralarin1TLKarsisindakiDegeriniBul
+    //#region DovizleriGetir, DovizGetirmeIslemiIcinTarihBul, GorunecekDovizIsminiAyarla, Paralarin1TLKarsisindakiDegeriniBul
     DovizleriGetir = async () => {
         try {
-            const gununTarihi = await TarihiStringeCevir(new Date())
+            const gununTarihi = await this.DovizGetirmeIslemiIcinTarihBul()
 
             const dovizlerSonuc = await axios.get(`https://evds2.tcmb.gov.tr/service/evds/series=TP.DK.USD.S-TP.DK.EUR.S&startDate=${gununTarihi}&endDate=${gununTarihi}&type=json&key=OUOWPKExMb`)
             const kriptoParalarSonuc = await axios.get("http://api.coinlayer.com/live?access_key=b8ff96db3ba403a1a49584d1d345d4df&target=TRY&symbols=BTC,ETH,DOGE")
@@ -86,9 +97,50 @@ export default class TekliCevirici extends Component<Props, State> {
                 await this.DdlDovizIcindekiEslesenVerileriKaldir()
                 this.forceUpdate()
             }
+            else {
+                this.setState({
+                    hataMesajiPopupAcikMi: true,
+                    hataMesajiPopupMesaj: "Döviz bilgilerini getirirken bir hata oluştu."
+                })
+            }
         } catch (error) {
-            console.log(error)
+            this.setState({
+                hataMesajiPopupAcikMi: true,
+                hataMesajiPopupMesaj: error.message
+            })
         }
+    }
+    DovizGetirmeIslemiIcinTarihBul = async () => {
+        // Tatil günlerinde merkez bankası veri göndermediği için bu metod ile tatilden bir önceki günü buluyoruz.
+        let gununTarihi = await TarihiStringeCevir(new Date())
+        let yilOncelikliGununTarihi = await TarihiStringeCevir(new Date(), true)
+
+        let tarih = new Date(`${yilOncelikliGununTarihi} 00:00:00 GMT+0000`)
+        let gunHaftaninKacinciGunu = tarih.getDay()
+        const hd = new Holidays("TR")
+        let resmiTatilMi = hd.isHoliday(new Date(`${yilOncelikliGununTarihi} 00:00:00 GMT+0000`))
+
+        if (gunHaftaninKacinciGunu === 6) {
+            tarih.setDate(tarih.getDate() - 1)
+            gununTarihi = await TarihiStringeCevir(new Date(tarih))
+        }
+        else if (gunHaftaninKacinciGunu === 0) {
+            tarih.setDate(tarih.getDate() - 2)
+            gununTarihi = await TarihiStringeCevir(new Date(tarih))
+        }
+        else if (resmiTatilMi !== false) {
+            for (let i = 1; ; i++) {
+                tarih.setDate(tarih.getDate() - i)
+                yilOncelikliGununTarihi = await TarihiStringeCevir(new Date(tarih), true)
+                resmiTatilMi = hd.isHoliday(new Date(`${yilOncelikliGununTarihi} 00:00:00 GMT+0000`))
+
+                if (resmiTatilMi === false) {
+                    break
+                }
+            }
+        }
+
+        return gununTarihi
     }
     GorunecekDovizIsminiAyarla = async (tumParalarinObjeleri, index) => {
         return tumParalarinObjeleri[index].includes("EUR") ? "EUR" : tumParalarinObjeleri[index].includes("USD") ? "USD" : tumParalarinObjeleri[index]
@@ -106,6 +158,7 @@ export default class TekliCevirici extends Component<Props, State> {
         return sonuc
     }
     //#endregion
+
     //#region DdlDovizIlkYuklemeleriniYap, DdlDovizIcindekiEslesenVerileriKaldir
     DdlDovizIlkYuklemeleriniYap = async () => {
         this.ddlBirinciDovizOptions = []
@@ -171,7 +224,8 @@ export default class TekliCevirici extends Component<Props, State> {
             }
         }
 
-        const ustGostergesizSonuc = SayiyiUstGostergesiOlmadanHesapla((ikinciDovizDegeri / birinciDovizDegeri) * Number(this.state.txtBirinciDoviz), 4)
+        let ustGostergesizSonuc = SayiyiUstGostergesiOlmadanHesapla((ikinciDovizDegeri / birinciDovizDegeri) * Number(this.state.txtBirinciDoviz), 4)
+        ustGostergesizSonuc = ustGostergesizSonuc.replace(".", ",")
 
         this.setState({
             txtSonuc: SayiyiBasamaklaraAyir(ustGostergesizSonuc)
@@ -198,18 +252,25 @@ export default class TekliCevirici extends Component<Props, State> {
     //#endregion
 
     render() {
-        const seciliBirinciDovizinAdi = this.tumParalarDiziyeDonusturulmusListe[this.state.ddlBirinciDoviz - 1] !== undefined ? this.tumParalarDiziyeDonusturulmusListe[this.state.ddlBirinciDoviz - 1].name : ""
-        const seciliIkinciDovizinAdi = this.tumParalarDiziyeDonusturulmusListe[this.state.ddlIkinciDoviz - 1] !== undefined ? this.tumParalarDiziyeDonusturulmusListe[this.state.ddlIkinciDoviz - 1].name : ""
+        const { ddlBirinciDoviz, ddlIkinciDoviz, hataMesajiPopupMesaj, hataMesajiPopupAcikMi, loadingPopupAcikMi, txtBirinciDoviz, txtSonuc }: State = this.state
+
+        const seciliBirinciDovizinAdi = this.tumParalarDiziyeDonusturulmusListe[ddlBirinciDoviz - 1] !== undefined ? this.tumParalarDiziyeDonusturulmusListe[ddlBirinciDoviz - 1].name : ""
+        const seciliIkinciDovizinAdi = this.tumParalarDiziyeDonusturulmusListe[ddlIkinciDoviz - 1] !== undefined ? this.tumParalarDiziyeDonusturulmusListe[ddlIkinciDoviz - 1].name : ""
 
         return (
-            <ScrollView contentContainerStyle={style.mainScrollView}>
+            <Layout
+                HataMesajiPopupOnClose={() => this.setState({ hataMesajiPopupAcikMi: false })}
+                hataMesajiPopupAcikMi={hataMesajiPopupAcikMi}
+                hataMesajiPopupMesaj={hataMesajiPopupMesaj}
+                loadingPopupAcikMi={loadingPopupAcikMi}
+            >
                 <View style={style.mainView}>
-                    <View style={style.textboxMainView}>
+                    <View style={style.mainViewIciView}>
                         <View style={style.textboxMainViewIcindekiAraclarinAnaBoyuView}>
                             <TextInputBox
                                 OnChangeText={this.OnChangeText}
                                 name="txtBirinciDoviz"
-                                value={this.state.txtBirinciDoviz}
+                                value={txtBirinciDoviz}
                                 keyboardType={KeyboardType.numeric}
                                 OnKeyPress={this.OnKeyPress}
                             />
@@ -219,7 +280,7 @@ export default class TekliCevirici extends Component<Props, State> {
                                 DdlOnChange={this.DdlDovizOnChange}
                                 name="ddlBirinciDoviz"
                                 options={this.ddlBirinciDovizOptions}
-                                value={this.state.ddlBirinciDoviz}
+                                value={ddlBirinciDoviz}
                             />
                         </View>
                         <TekliCeviriciBtnYerDegistir
@@ -230,30 +291,30 @@ export default class TekliCevirici extends Component<Props, State> {
                                 DdlOnChange={this.DdlDovizOnChange}
                                 name="ddlIkinciDoviz"
                                 options={this.ddlIkinciDovizOptions}
-                                value={this.state.ddlIkinciDoviz}
+                                value={ddlIkinciDoviz}
                             />
                         </View>
                         <View style={style.sonucView}>
                             <Text style={style.sonucMainText}>
-                                {`${this.state.txtBirinciDoviz} ${seciliBirinciDovizinAdi} = `}
-                                <Text style={style.donusumSonucuText}>{`${this.state.txtSonuc} `}</Text>
+                                {`${txtBirinciDoviz} ${seciliBirinciDovizinAdi} = `}
+                                <Text style={style.donusumSonucuText}>{`${txtSonuc} `}</Text>
                                 {seciliIkinciDovizinAdi}
                             </Text>
                         </View>
                     </View>
                 </View>
-            </ScrollView>
+            </Layout>
         )
     }
 }
 
 const style = StyleSheet.create({
-    mainScrollView: {
+    mainView: {
         justifyContent: "center",
         alignItems: "center",
         flexGrow: 1
     },
-    mainView: {
+    mainViewIciView: {
         backgroundColor: "gainsboro",
         width: "90%",
         borderRadius: 5,
@@ -264,12 +325,10 @@ const style = StyleSheet.create({
             width: 3
         },
         shadowRadius: 5,
-        shadowOpacity: 0.5
-    },
-    textboxMainView: {
+        shadowOpacity: 0.5,
         justifyContent: "center",
         alignItems: "center",
-        marginTop: 10,
+        paddingVertical: 10
     },
     textboxMainViewIcindekiAraclarinAnaBoyuView: {
         width: "95%",
@@ -278,7 +337,8 @@ const style = StyleSheet.create({
     sonucView: {
         backgroundColor: "white",
         marginVertical: 10,
-        borderRadius: 5
+        borderRadius: 5,
+        width: "95%"
     },
     sonucMainText: {
         marginVertical: 10,

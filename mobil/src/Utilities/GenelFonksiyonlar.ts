@@ -21,7 +21,11 @@ export const SayiyiUstGostergesiOlmadanHesapla = (sayi: number, virgulSonrasiBas
  * Vermiş olduğunuz tarihi GG-AA-YYYY formatında string olarak geri döner. Örneğin: 11-09-2020. NOT: Offset zamanı sıfırlanarak işlem yapılır.
  * @param tarih Dönüştürülecek tarihi verin.
  */
-export const TarihiStringeCevir = async (tarih: Date) => {
+
+/**
+ * @param yilAyGunMu = Eğer burası true gönderilirse YYYY-AA-GG formatında gönderilir. False veya undefined gönderilse eğer GG-AA-YYYY şeklinde geriye dönüş yapar
+ */
+export const TarihiStringeCevir = async (tarih: Date, yilAyGunMu?: boolean) => {
     let tarih1 = tarih
     let yil = tarih1.getFullYear()
     let ay = tarih1.getMonth()
@@ -32,11 +36,16 @@ export const TarihiStringeCevir = async (tarih: Date) => {
     ay = tarih1.getMonth()
     gun = tarih1.getDate()
 
-    return (gun.toString().length === 1 ? "0" + gun : gun) + "-" + ((ay + 1).toString().length === 1 ? "0" + (ay + 1) : (ay + 1)) + "-" + yil
+    if (yilAyGunMu) {
+        return yil + "-" + ((ay + 1).toString().length === 1 ? "0" + (ay + 1) : (ay + 1)) + "-" + (gun.toString().length === 1 ? "0" + gun : gun)
+    }
+    else {
+        return (gun.toString().length === 1 ? "0" + gun : gun) + "-" + ((ay + 1).toString().length === 1 ? "0" + (ay + 1) : (ay + 1)) + "-" + yil
+    }
 }
 
 export const SayiyiBasamaklaraAyir = (sayi) => {
-    var parts = sayi.toString().split(".");
-    parts[0] = parts[0].replace(/\B(?=(\d{3})+(?!\d))/g, ",");
-    return parts.join(".");
+    var parts = sayi.toString().split(",");
+    parts[0] = parts[0].replace(/\B(?=(\d{3})+(?!\d))/g, ".");
+    return parts.join(",");
 }
