@@ -1,15 +1,14 @@
 import React, { Component } from 'react'
 import { StyleSheet, NativeSyntheticEvent, TextInputKeyPressEventData, Text, View, Image } from 'react-native'
-import TekliCeviriciBtnYerDegistir from '../Components/TekliCevirici/TekliCeviriciBtnYerDegistir'
+import TekliCeviriciBtnYerDegistir from '../Components/Pages/TekliCevirici/TekliCeviriciBtnYerDegistir'
 import DropdownList, { IDdlOptions } from '../Components/Araclar/DropdownList'
-import axios from "axios"
-import { SayiyiBasamaklaraAyir, SayiyiUstGostergesiOlmadanHesapla, TarihiStringeCevir } from '../Utilities/GenelFonksiyonlar'
+import { SayiyiBasamaklaraAyir, SayiyiUstGostergesiOlmadanHesapla } from '../Utilities/GenelFonksiyonlar'
 import TextInputBox, { KeyboardType } from '../Components/Araclar/TextInputBox'
-import Holidays from "date-holidays"
 import Layout from '../Components/Layout/Layout'
+import { RouterPropType } from '../Routers/RouterPropType'
 
 
-interface Props {
+interface Props extends RouterPropType<"TekliCevirici"> {
 
 }
 interface State {
@@ -76,79 +75,36 @@ export default class TekliCevirici extends Component<Props, State> {
         this.setState({ loadingPopupAcikMi: false })
     }
 
-    //#region DovizleriGetir, DovizGetirmeIslemiIcinTarihBul, GorunecekDovizIsminiAyarla, Paralarin1TLKarsisindakiDegeriniBul
+    //#region DovizleriGetir, GorunecekDovizIsminiAyarla, Paralarin1TLKarsisindakiDegeriniBul
     DovizleriGetir = async () => {
         try {
-            const gununTarihi = await this.DovizGetirmeIslemiIcinTarihBul()
+            const dovizlerSonuc = this.props.route.params.dovizlerApicallSonuc
+            const kriptoParalarsonuc = this.props.route.params.kriptoParalarApicallSonuc
+            console.log(kriptoParalarsonuc)
 
-            const dovizlerSonuc = await axios.get(`https://evds2.tcmb.gov.tr/service/evds/series=TP.DK.USD.S-TP.DK.EUR.S&startDate=${gununTarihi}&endDate=${gununTarihi}&type=json&key=OUOWPKExMb`)
+            this.tumParalarListesi = dovizlerSonuc.items[0]
+            delete this.tumParalarListesi["Tarih"]
+            delete this.tumParalarListesi["UNIXTIME"]
 
-            const kriptoParalarsonuc = await axios.get("https://pro-api.coinmarketcap.com/v1/cryptocurrency/quotes/latest?symbol=BTC,ETH,DOGE&convert=TRY", { headers: { "X-CMC_PRO_API_KEY": "23e0d3d1-41ae-43a0-87e3-57b4d2764bc6" } })
-
-            if (dovizlerSonuc.status === 200 && kriptoParalarsonuc.status === 200) {
-                this.tumParalarListesi = dovizlerSonuc.data.items[0]
-                delete this.tumParalarListesi["Tarih"]
-                delete this.tumParalarListesi["UNIXTIME"]
-
-                const kriptoParaObjeleri = Object.keys(kriptoParalarsonuc.data.data)
-                for (let i = 0; i < kriptoParaObjeleri.length; i++) {
-                    console.log(kriptoParaObjeleri[i])
-                    this.tumParalarListesi = {
-                        ...this.tumParalarListesi,
-                        [kriptoParaObjeleri[i]]: kriptoParalarsonuc.data.data[kriptoParaObjeleri[i]].quote.TRY.price
-                    }
+            const kriptoParaObjeleri = Object.keys(kriptoParalarsonuc)
+            for (let i = 0; i < kriptoParaObjeleri.length; i++) {
+                this.tumParalarListesi = {
+                    ...this.tumParalarListesi,
+                    [kriptoParaObjeleri[i]]: kriptoParalarsonuc[kriptoParaObjeleri[i]].quote.TRY.price
                 }
-
-                const paralarin1TLDonusumSonucu = await this.Paralarin1TLKarsisindakiDegeriniBul(this.tumParalarListesi)
-                this.tumParalarListesi = paralarin1TLDonusumSonucu
-
-                await this.DdlDovizIcindekiEslesenVerileriKaldir()
-                this.forceUpdate()
             }
-            else {
-                this.setState({
-                    hataMesajiPopupAcikMi: true,
-                    hataMesajiPopupMesaj: "Döviz bilgilerini getirirken bir hata oluştu."
-                })
-            }
+
+            const paralarin1TLDonusumSonucu = await this.Paralarin1TLKarsisindakiDegeriniBul(this.tumParalarListesi)
+            this.tumParalarListesi = paralarin1TLDonusumSonucu
+
+            await this.DdlDovizIcindekiEslesenVerileriKaldir()
+            this.forceUpdate()
         } catch (error) {
             this.setState({
                 hataMesajiPopupAcikMi: true,
                 hataMesajiPopupMesaj: error.message
             })
         }
-    }
-    DovizGetirmeIslemiIcinTarihBul = async () => {
-        // Tatil günlerinde merkez bankası veri göndermediği için bu metod ile tatilden bir önceki günü buluyoruz.
-        let gununTarihi = await TarihiStringeCevir(new Date())
-        let yilOncelikliGununTarihi = await TarihiStringeCevir(new Date(), true)
-
-        let tarih = new Date(yilOncelikliGununTarihi)
-        let gunHaftaninKacinciGunu = tarih.getDay()
-        const hd = new Holidays("TR")
-        let resmiTatilMi = hd.isHoliday(new Date(yilOncelikliGununTarihi))
-
-        if (gunHaftaninKacinciGunu === 6) {
-            tarih.setDate(tarih.getDate() - 1)
-            gununTarihi = await TarihiStringeCevir(new Date(tarih))
-        }
-        else if (gunHaftaninKacinciGunu === 0) {
-            tarih.setDate(tarih.getDate() - 2)
-            gununTarihi = await TarihiStringeCevir(new Date(tarih))
-        }
-        else if (resmiTatilMi !== false) {
-            for (let i = 1; ; i++) {
-                tarih.setDate(tarih.getDate() - i)
-                yilOncelikliGununTarihi = await TarihiStringeCevir(new Date(tarih), true)
-                resmiTatilMi = hd.isHoliday(new Date(`${yilOncelikliGununTarihi} 00:00:00 GMT+0000`))
-
-                if (resmiTatilMi === false) {
-                    break
-                }
-            }
-        }
-
-        return gununTarihi
     }
     GorunecekDovizIsminiAyarla = async (tumParalarinObjeleri, index) => {
         return tumParalarinObjeleri[index].includes("EUR") ? "EUR" : tumParalarinObjeleri[index].includes("USD") ? "USD" : tumParalarinObjeleri[index]
@@ -219,6 +175,7 @@ export default class TekliCevirici extends Component<Props, State> {
     DovizHesapla = async () => {
         let birinciDovizDegeri
         let ikinciDovizDegeri
+        
         for (let i = 0; i < this.tumParalarDiziyeDonusturulmusListe.length; i++) {
             if (this.tumParalarDiziyeDonusturulmusListe[i].id === this.state.ddlBirinciDoviz) {
                 birinciDovizDegeri = this.tumParalarDiziyeDonusturulmusListe[i].value

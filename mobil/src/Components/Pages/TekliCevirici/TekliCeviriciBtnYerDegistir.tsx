@@ -18,7 +18,7 @@ export default class TekliCeviriciBtnYerDegistir extends Component<Props, State>
                 onPress={this.props.OnPress}
             >
                 <Image
-                    source={require("../../Images/Icons/takasOklari.png")}
+                    source={require("../../../Images/Icons/takasOklari.png")}
                     style={{ width: 25, height: 25 }}
                 />
             </TouchableOpacity>
