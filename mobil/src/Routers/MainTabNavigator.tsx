@@ -8,8 +8,7 @@ import TekliCevirici from '../Pages/TekliCevirici'
 const MainTab = createBottomTabNavigator<RootStackParamList>()
 
 interface Props {
-    dovizlerApicallSonuc: any
-    kriptoParalarApicallSonuc: any
+
 }
 interface State {
 
@@ -24,10 +23,6 @@ export default class MainTabNavigator extends Component<Props, State> {
                     name="TekliCevirici"
                     component={TekliCevirici}
                     options={{ title: "Çevirici" }}
-                    initialParams={{
-                        dovizlerApicallSonuc: this.props.dovizlerApicallSonuc,
-                        kriptoParalarApicallSonuc: this.props.kriptoParalarApicallSonuc,
-                    }}
                 />
                 <MainTab.Screen
                     name="ListeCevirici"

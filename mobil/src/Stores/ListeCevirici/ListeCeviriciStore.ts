@@ -1,5 +1,6 @@
 import { action, configure, observable, runInAction, toJS } from "mobx"
 import { SayiyiBasamaklaraAyir, SayiyiUstGostergesiOlmadanHesapla } from '../../Utilities/GenelFonksiyonlar';
+import AppStore from "../AppStore";
 
 configure({
     enforceActions: "observed"
@@ -13,8 +14,6 @@ class ListeCeviriciStore {
 
     @observable data: Array<any> = []
     dinamik = observable.map()
-    @observable dovizlerApiCallSonuc: any = {}
-    @observable kriptoParalarApiCallSonuc: any = {}
     //#endregion
     //#region Değişkenkler
     tumParalarListesi = {}
@@ -38,20 +37,11 @@ class ListeCeviriciStore {
     }
     //#endregion
 
-    //#region DovizleriAl, KriptoParalariAl
-    @action DovizleriAl = async (dovizlerApiCallSonuc) => {
-        this.dovizlerApiCallSonuc = dovizlerApiCallSonuc
-    }
-    @action KriptoParalariAl = async (kriptoParalarApiCallSonuc) => {
-        this.kriptoParalarApiCallSonuc = kriptoParalarApiCallSonuc
-    }
-    //#endregion
-
     //#region DovizIlkYuklemeleriniYap, GorunecekDovizIsminiAyarla, Paralarin1TLKarsisindakiDegeriniBul
     @action DovizIlkYuklemeleriniYap = async () => {
         try {
-            const dovizlerSonuc = this.dovizlerApiCallSonuc
-            const kriptoParalarSonuc = this.kriptoParalarApiCallSonuc
+            const dovizlerSonuc = AppStore.dovizlerListesi
+            const kriptoParalarSonuc = AppStore.kriptoParalarListesi
 
             runInAction(() => {
                 this.tumParalarListesi = dovizlerSonuc.items[0]
